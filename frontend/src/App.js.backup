@@ -1,0 +1,668 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { motion } from 'framer-motion';
+import {
+  BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts';
+import {
+  Grid, Paper, Typography, Button, TextField,
+  Card, CardContent, Chip, LinearProgress, Box, Avatar,
+  Accordion, AccordionSummary, AccordionDetails, Divider
+} from '@mui/material';
+import {
+  TrendingUp as TrendingUpIcon,
+  Whatshot as WhatshotIcon,
+  Code as CodeIcon,
+  AccountTree as AccountTreeIcon,
+  SettingsApplications as SettingsIcon,
+  ExpandMore as ExpandMoreIcon,
+  DataUsage as DataUsageIcon
+} from '@mui/icons-material';
+
+const API_URL = 'http://localhost:8000/api';
+
+const COLORS = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#30cfd0', '#a18cd1'];
+
+const TECH_COLORS = {
+  'Python': '#3776AB',
+  'JavaScript': '#F7DF1E',
+  'React': '#61DAFB',
+  'Angular': '#DD0031',
+  'Vue.js': '#4FC08D',
+  'Node.js': '#339933',
+  'Django': '#092E20',
+  'Flask': '#000000',
+  'Java': '#007396',
+  'AWS': '#FF9900',
+  'Azure': '#0078D4',
+  'GCP': '#4285F4',
+  'Docker': '#2496ED',
+  'Kubernetes': '#326CE5',
+  'TensorFlow': '#FF6F00',
+  'PyTorch': '#EE4C2C',
+  'MongoDB': '#47A248',
+  'PostgreSQL': '#336791',
+  'MySQL': '#4479A1',
+  'Redis': '#DC382D',
+  'Git': '#F05032',
+  'OpenAI': '#412991',
+  'LangChain': '#1C3C6C',
+  'LLM': '#7C3AED'
+};
+
+function App() 
+{
+  const [urls, setUrls] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [reports, setReports] = useState([]);
+  const [agents, setAgents] = useState({});
+  const [activeTab, setActiveTab] = useState('analyze');
+  const [error, setError] = useState(null);
+  const [backendStatus, setBackendStatus] = useState('checking');
+  const [expandedCompanies, setExpandedCompanies] = useState({});
+  const [expandedRawData, setExpandedRawData] = useState({});
+  const [techData, setTechData] = useState([]);
+  const [trendingTech, setTrendingTech] = useState([]);
+  const [companyCount, setCompanyCount] = useState(0);
+  const [totalTech, setTotalTech] = useState(0);
+
+  useEffect(() => {
+    checkBackend();
+    loadReports();
+    loadAgentStatus();
+  }, []);
+
+  useEffect(() => {
+    if (result?.results?.AnalyzerAgent?.analysis) {
+      const analysis = result.results.AnalyzerAgent.analysis;
+      if (analysis.technology_analysis?.top_technologies) {
+        const data = analysis.technology_analysis.top_technologies.map((item) => ({
+          name: item.name,
+          value: item.count,
+          fill: TECH_COLORS[item.name] || '#667eea'
+        }));
+        setTechData(data);
+        setTotalTech(analysis.technology_analysis.total_technologies || 0);
+        const sorted = [...data].sort((a, b) => b.value - a.value);
+        setTrendingTech(sorted.slice(0, 5));
+      }
+      if (analysis.total_companies) setCompanyCount(analysis.total_companies);
+    }
+  }, [result]);
+
+  const checkBackend = async () => {
+    try {
+      await axios.get('http://localhost:8000/health');
+      setBackendStatus('connected');
+    } catch (e) {
+      setBackendStatus('disconnected');
+    }
+  };
+
+  const loadReports = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/reports`);
+      setReports(res.data.reports || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadAgentStatus = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/agents/status`);
+      setAgents(res.data.agents || {});
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!urls.trim()) {
+      alert('Please enter at least one URL');
+      return;
+    }
+    setLoading(true);
+    setResult(null);
+    setError(null);
+    try {
+      const urlList = urls.split('\n').filter(u => u.trim());
+      const res = await axios.post(`${API_URL}/analyze`, { urls: urlList });
+      setResult(res.data);
+      await loadReports();
+      await loadAgentStatus();
+    } catch (e) {
+      setError(e.response?.data?.detail || e.message);
+      alert('Error: ' + (e.response?.data?.detail || e.message));
+    }
+    setLoading(false);
+  };
+
+  const toggleExpand = (name) => {
+    setExpandedCompanies(prev => ({ ...prev, [name]: !prev[name] }));
+  };
+
+  const toggleRawData = (name) => {
+    setExpandedRawData(prev => ({ ...prev, [name]: !prev[name] }));
+  };
+
+  const getCleanedData = () => result?.results?.CleanerAgent?.cleaned_data || [];
+  const getRawData = () => result?.results?.EnhancedScraperAgent?.scraped_data || [];
+  const getAnalysis = () => result?.results?.AnalyzerAgent?.analysis || null;
+
+  const cleanedData = getCleanedData();
+  const rawData = getRawData();
+  const analysis = getAnalysis();
+
+  const styles = {
+    container: {
+      fontFamily: 'Arial, sans-serif',
+      maxWidth: 1600,
+      margin: '0 auto',
+      padding: 20,
+      backgroundColor: '#f0f2f5',
+      minHeight: '100vh'
+    },
+    header: {
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      color: 'white',
+      padding: '30px 40px',
+      borderRadius: 16,
+      marginBottom: 24,
+      boxShadow: '0 8px 32px rgba(102,126,234,0.4)',
+      position: 'relative',
+      overflow: 'hidden'
+    },
+    headerGlow: {
+      position: 'absolute',
+      top: '-50%',
+      right: '-20%',
+      width: '60%',
+      height: '200%',
+      background: 'radial-gradient(ellipse, rgba(255,255,255,0.1) 0%, transparent 70%)',
+      borderRadius: '50%'
+    },
+    headerTitle: { fontSize: 36, margin: 0, fontWeight: 'bold', position: 'relative', zIndex: 1 },
+    headerSub: { fontSize: 18, opacity: 0.9, margin: '8px 0 0 0', position: 'relative', zIndex: 1 },
+    statusBadge: {
+      display: 'inline-block',
+      padding: '6px 16px',
+      borderRadius: 20,
+      fontSize: 13,
+      fontWeight: 'bold',
+      marginTop: 12,
+      position: 'relative',
+      zIndex: 1
+    },
+    statusConnected: { background: '#d4edda', color: '#155724' },
+    statusDisconnected: { background: '#f8d7da', color: '#721c24' },
+    tabs: {
+      display: 'flex',
+      gap: 12,
+      marginBottom: 24,
+      padding: '6px',
+      background: 'white',
+      borderRadius: 12,
+      boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+    },
+    tab: {
+      padding: '12px 28px',
+      cursor: 'pointer',
+      borderRadius: 8,
+      background: 'transparent',
+      border: 'none',
+      fontSize: 15,
+      fontWeight: 'bold',
+      transition: 'all 0.3s ease'
+    },
+    tabActive: { background: '#667eea', color: 'white', boxShadow: '0 4px 12px rgba(102,126,234,0.3)' },
+    card: {
+      background: 'white',
+      padding: 24,
+      borderRadius: 16,
+      marginBottom: 20,
+      boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+      border: '1px solid rgba(0,0,0,0.04)'
+    },
+    textarea: {
+      width: '100%',
+      padding: 14,
+      minHeight: 140,
+      border: '2px solid #e1e4e8',
+      borderRadius: 12,
+      fontSize: 14,
+      fontFamily: 'monospace',
+      resize: 'vertical'
+    },
+    button: {
+      padding: '14px 48px',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      color: 'white',
+      border: 'none',
+      borderRadius: 12,
+      cursor: 'pointer',
+      fontSize: 16,
+      fontWeight: 'bold',
+      boxShadow: '0 4px 16px rgba(102,126,234,0.35)'
+    },
+    buttonDisabled: { opacity: 0.5, cursor: 'not-allowed' },
+    grid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+      gap: 16,
+      marginTop: 16
+    },
+    statCard: {
+      padding: 20,
+      background: '#f8f9fa',
+      borderRadius: 12,
+      border: '1px solid #e1e4e8',
+      textAlign: 'center'
+    },
+    statValue: { fontSize: 32, fontWeight: 'bold', color: '#667eea', margin: '8px 0' },
+    loadingBox: { background: '#e3f2fd', padding: 24, borderRadius: 12, marginTop: 16 },
+    errorBox: {
+      background: '#f8d7da',
+      padding: 16,
+      borderRadius: 12,
+      marginTop: 16,
+      border: '1px solid #f5c6cb',
+      color: '#721c24'
+    },
+    companyCard: {
+      background: 'white',
+      padding: 20,
+      borderRadius: 12,
+      marginBottom: 16,
+      border: '1px solid #e1e4e8'
+    },
+    featureTag: {
+      display: 'inline-block',
+      padding: '4px 14px',
+      borderRadius: 20,
+      margin: '3px',
+      fontSize: 12,
+      cursor: 'default'
+    },
+    expandButton: {
+      background: 'none',
+      border: 'none',
+      color: '#667eea',
+      cursor: 'pointer',
+      fontSize: 14,
+      fontWeight: 'bold',
+      padding: '5px 12px',
+      borderRadius: 4
+    },
+    projectCard: {
+      background: '#f8f9fa',
+      padding: 14,
+      borderRadius: 8,
+      marginBottom: 10,
+      borderLeft: '4px solid #667eea'
+    },
+    pre: {
+      background: '#f6f8fa',
+      padding: 16,
+      borderRadius: 10,
+      maxHeight: 400,
+      overflow: 'auto',
+      fontSize: 12,
+      fontFamily: 'monospace'
+    },
+    chartCard: {
+      background: 'white',
+      padding: 24,
+      borderRadius: 16,
+      boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+      border: '1px solid rgba(0,0,0,0.04)',
+      height: '100%'
+    },
+    rawDataCard: {
+      background: '#f8f9fa',
+      padding: 16,
+      borderRadius: 10,
+      marginBottom: 12,
+      border: '1px solid #e1e4e8'
+    },
+    rawDataKey: { fontWeight: 'bold', color: '#495057', fontSize: 13 },
+    rawDataValue: { color: '#212529', fontSize: 13, marginLeft: 5 },
+    rawDataArray: { display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5 }
+  };
+
+  const statsCards = [
+    { title: 'Companies Analyzed', value: companyCount, icon: <AccountTreeIcon />, color: '#667eea' },
+    { title: 'Technologies Found', value: totalTech, icon: <CodeIcon />, color: '#764ba2' },
+    { title: 'Services Detected', value: analysis?.service_analysis?.total_services || 0, icon: <SettingsIcon />, color: '#4facfe' },
+  ];
+
+  return (
+    <div style={styles.container}>
+      <div style={styles.header}>
+        <div style={styles.headerGlow} />
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+          <h1 style={styles.headerTitle}>🎯 Competitor Intelligence Dashboard</h1>
+          <p style={styles.headerSub}>Multi-Agent System for Automated Competitor Analysis</p>
+          <span style={{...styles.statusBadge, ...(backendStatus === 'connected' ? styles.statusConnected : styles.statusDisconnected)}}>
+            {backendStatus === 'connected' ? '✅ Backend Connected' : '❌ Backend Disconnected'}
+          </span>
+        </motion.div>
+      </div>
+
+      <div style={styles.tabs}>
+        {['analyze', 'dashboard', 'reports', 'agents'].map(tab => (
+          <button key={tab} style={{...styles.tab, ...(activeTab === tab ? styles.tabActive : {})}} onClick={() => setActiveTab(tab)}>
+            {tab === 'analyze' && '🚀 New Analysis'}
+            {tab === 'dashboard' && '📊 Dashboard'}
+            {tab === 'reports' && `📋 Reports (${reports.length})`}
+            {tab === 'agents' && '🤖 Agents'}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'analyze' && (
+        <div>
+          <Paper style={styles.card}>
+            <h3 style={{ margin: '0 0 10px 0' }}>Enter Competitor URLs</h3>
+            <p style={{ color: '#666', margin: '0 0 10px 0' }}>One URL per line</p>
+            <textarea style={styles.textarea} placeholder="https://example.com&#10;https://another.com" value={urls} onChange={e => setUrls(e.target.value)} />
+            <br /><br />
+            <button style={{...styles.button, ...(loading || backendStatus === 'disconnected' ? styles.buttonDisabled : {})}} onClick={handleAnalyze} disabled={loading || backendStatus === 'disconnected'}>
+              {loading ? '⏳ Analyzing...' : '🚀 Start Analysis'}
+            </button>
+          </Paper>
+
+          {loading && (
+            <div style={styles.loadingBox}>
+              <h4>🔄 Agents are working:</h4>
+              <ul>
+                <li>📡 EnhancedScraperAgent: Collecting company data...</li>
+                <li>🧹 CleanerAgent: Structuring and cleaning data...</li>
+                <li>📊 AnalyzerAgent: Generating insights...</li>
+              </ul>
+              <LinearProgress style={{ marginTop: 12 }} />
+            </div>
+          )}
+
+          {error && <div style={styles.errorBox}><strong>❌ Error:</strong> {error}</div>}
+
+          {result && (
+            <div>
+              <Paper style={styles.card}>
+                <h3>📊 Analysis Summary</h3>
+                <div style={styles.grid}>
+                  <div style={styles.statCard}>
+                    <div style={{ color: '#666' }}>Total Competitors</div>
+                    <div style={styles.statValue}>{analysis?.total_companies || cleanedData.length || 0}</div>
+                  </div>
+                  <div style={styles.statCard}>
+                    <div style={{ color: '#666' }}>Total Services</div>
+                    <div style={styles.statValue}>{analysis?.service_analysis?.total_services || 0}</div>
+                  </div>
+                  <div style={styles.statCard}>
+                    <div style={{ color: '#666' }}>Total Technologies</div>
+                    <div style={styles.statValue}>{analysis?.technology_analysis?.total_technologies || 0}</div>
+                  </div>
+                </div>
+              </Paper>
+
+              <Paper style={styles.card}>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <DataUsageIcon style={{ color: '#667eea' }} />
+                  📋 Company-wise Raw Data
+                  <Chip label={`${rawData.length} companies`} size="small" style={{ marginLeft: 10, background: '#667eea', color: 'white' }} />
+                </h3>
+                <Divider style={{ margin: '12px 0' }} />
+                {rawData.length === 0 ? (
+                  <Typography variant="body2" color="textSecondary" style={{ padding: 20, textAlign: 'center' }}>
+                    No raw data available. Run an analysis first!
+                  </Typography>
+                ) : (
+                  rawData.map((item, index) => {
+                    const companyName = item.data?.company_name || `Company ${index + 1}`;
+                    const isExpanded = expandedRawData[companyName] || false;
+                    const data = item.data || {};
+                    return (
+                      <Accordion key={index} expanded={isExpanded} onChange={() => toggleRawData(companyName)} style={{ marginBottom: 10, borderRadius: 8, border: '1px solid #e1e4e8' }}>
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                          <Box display="flex" alignItems="center" gap={2} width="100%">
+                            <Avatar style={{ background: '#667eea', width: 32, height: 32, fontSize: 14 }}>{index + 1}</Avatar>
+                            <Box flex={1}>
+                              <Typography variant="subtitle1" style={{ fontWeight: 'bold' }}>{companyName}</Typography>
+                              <Typography variant="caption" color="textSecondary">{item.url}</Typography>
+                            </Box>
+                            <Chip label={item.status === 'success' ? '✅ Success' : '❌ Failed'} size="small" style={{ background: item.status === 'success' ? '#d4edda' : '#f8d7da', color: item.status === 'success' ? '#155724' : '#721c24' }} />
+                          </Box>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                          {item.status === 'failed' ? (
+                            <Typography color="error">Error: {item.error}</Typography>
+                          ) : (
+                            <Box>
+                              <Grid container spacing={2}>
+                                <Grid item xs={12} md={6}>
+                                  <Typography variant="subtitle2" style={{ fontWeight: 'bold', color: '#667eea' }}>Basic Information</Typography>
+                                  <Box style={styles.rawDataCard}>
+                                    <div><span style={styles.rawDataKey}>Company Name:</span> <span style={styles.rawDataValue}>{data.company_name || 'N/A'}</span></div>
+                                    <div><span style={styles.rawDataKey}>URL:</span> <span style={styles.rawDataValue}>{data.url}</span></div>
+                                    <div><span style={styles.rawDataKey}>Founded:</span> <span style={styles.rawDataValue}>{data.founded_year || 'Unknown'}</span></div>
+                                    <div><span style={styles.rawDataKey}>Page Title:</span> <span style={styles.rawDataValue}>{data.page_title || 'N/A'}</span></div>
+                                  </Box>
+                                </Grid>
+                                <Grid item xs={12} md={6}>
+                                  <Typography variant="subtitle2" style={{ fontWeight: 'bold', color: '#667eea' }}>About</Typography>
+                                  <Box style={styles.rawDataCard}>
+                                    <div style={styles.rawDataValue}>{data.about || 'No about information available'}</div>
+                                  </Box>
+                                </Grid>
+                              </Grid>
+                              {data.services && data.services.length > 0 && (
+                                <Box style={{ marginTop: 12 }}>
+                                  <Typography variant="subtitle2" style={{ fontWeight: 'bold', color: '#667eea' }}>🛠️ Services ({data.services.length})</Typography>
+                                  <Box style={styles.rawDataArray}>
+                                    {data.services.map((service, i) => <Chip key={i} label={service} size="small" style={{ background: '#e3f2fd' }} />)}
+                                  </Box>
+                                </Box>
+                              )}
+                              {data.projects && data.projects.length > 0 && (
+                                <Box style={{ marginTop: 12 }}>
+                                  <Typography variant="subtitle2" style={{ fontWeight: 'bold', color: '#667eea' }}>📋 Projects ({data.projects.length})</Typography>
+                                  {data.projects.map((project, i) => (
+                                    <Box key={i} style={styles.projectCard}>
+                                      <div style={{ fontWeight: 'bold' }}>{project.name || 'Unnamed'}</div>
+                                      {project.description && <div style={{ fontSize: 13, color: '#555' }}>{project.description}</div>}
+                                      {project.client && <div style={{ fontSize: 12, color: '#667eea' }}>Client: {project.client}</div>}
+                                    </Box>
+                                  ))}
+                                </Box>
+                              )}
+                              {data.tech_stack && data.tech_stack.length > 0 && (
+                                <Box style={{ marginTop: 12 }}>
+                                  <Typography variant="subtitle2" style={{ fontWeight: 'bold', color: '#667eea' }}>💻 Tech Stack ({data.tech_stack.length})</Typography>
+                                  <Box style={styles.rawDataArray}>
+                                    {data.tech_stack.map((tech, i) => <Chip key={i} label={tech} size="small" style={{ background: '#e8f5e9' }} />)}
+                                  </Box>
+                                </Box>
+                              )}
+                              {data.clients && data.clients.names && data.clients.names.length > 0 && (
+                                <Box style={{ marginTop: 12 }}>
+                                  <Typography variant="subtitle2" style={{ fontWeight: 'bold', color: '#667eea' }}>👥 Clients {data.clients.count && `(${data.clients.count} total)`}</Typography>
+                                  <Box style={styles.rawDataArray}>
+                                    {data.clients.names.map((client, i) => <Chip key={i} label={client} size="small" style={{ background: '#fff3e0' }} />)}
+                                  </Box>
+                                </Box>
+                              )}
+                              {data.industry && data.industry.length > 0 && (
+                                <Box style={{ marginTop: 12 }}>
+                                  <Typography variant="subtitle2" style={{ fontWeight: 'bold', color: '#667eea' }}>🏷️ Industry</Typography>
+                                  <Box style={styles.rawDataArray}>
+                                    {data.industry.map((ind, i) => <Chip key={i} label={ind} size="small" style={{ background: '#e0f7fa' }} />)}
+                                  </Box>
+                                </Box>
+                              )}
+                              <Box style={{ marginTop: 16 }}>
+                                <Typography variant="subtitle2" style={{ fontWeight: 'bold', color: '#667eea' }}>📄 Full Raw Data</Typography>
+                                <div style={styles.pre}>
+                                  <pre>{JSON.stringify(data, null, 2)}</pre>
+                                </div>
+                              </Box>
+                            </Box>
+                          )}
+                        </AccordionDetails>
+                      </Accordion>
+                    );
+                  })
+                )}
+              </Paper>
+
+              {cleanedData.length > 0 && (
+                <div>
+                  <h3>🏢 Competitor Analysis (Cleaned Data)</h3>
+                  {cleanedData.map((company, index) => {
+                    const isExpanded = expandedCompanies[company.company] || false;
+                    const services = company.services || [];
+                    const techStack = company.tech_stack || [];
+                    const clients = company.clients || {};
+                    const clientNames = clients.names || [];
+                    const projects = company.projects || [];
+                    return (
+                      <motion.div key={index} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.1 }}>
+                        <div style={styles.companyCard}>
+                          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer'}} onClick={() => toggleExpand(company.company)}>
+                            <div>
+                              <h3 style={{margin: 0, color: '#667eea'}}>{company.company || 'Unknown'}</h3>
+                              <div style={{fontSize: 12, color: '#666'}}>{company.url}</div>
+                            </div>
+                            <button style={styles.expandButton}>
+                              {isExpanded ? '▼ Show Less' : `▶ Show All (${services.length + techStack.length + clientNames.length} items)`}
+                            </button>
+                          </div>
+                          <div style={{marginTop: 10}}>
+                            {company.founded_year && company.founded_year !== "Unknown" && <div><strong>📅 Founded:</strong> {company.founded_year}</div>}
+                            {company.team_size && company.team_size.count && <div><strong>👤 Team:</strong> {company.team_size.count} employees ({company.team_size.range})</div>}
+                            {company.about && company.about !== "No about information available" && <div style={{marginTop: 5}}><strong>📝 About:</strong> {company.about.length > 200 ? company.about.substring(0, 200) + '...' : company.about}</div>}
+                          </div>
+                          <div style={{marginTop: 10}}>
+                            <strong>🛠️ Services ({services.length}):</strong>
+                            <div style={{display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5}}>
+                              {services.slice(0, isExpanded ? services.length : 5).map((service, i) => {
+                                const name = typeof service === 'string' ? service : service.name;
+                                return name ? <span key={i} style={{...styles.featureTag, background: '#e3f2fd', color: '#1565c0'}}>{name.length > 30 ? name.substring(0, 30) + '...' : name}</span> : null;
+                              })}
+                              {!isExpanded && services.length > 5 && <span style={{...styles.featureTag, background: '#bbdefb', fontWeight: 'bold', cursor: 'pointer'}} onClick={(e) => { e.stopPropagation(); toggleExpand(company.company); }}>+{services.length - 5} more</span>}
+                            </div>
+                          </div>
+                          <div style={{maxHeight: isExpanded ? '3000px' : 0, overflow: 'hidden', transition: 'max-height 0.4s ease-in-out'}}>
+                            {services.length > 5 && <div style={{marginTop: 10}}><strong>📋 All Services:</strong><div style={{display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5}}>{services.map((service, i) => { const name = typeof service === 'string' ? service : service.name; return name ? <span key={i} style={{...styles.featureTag, background: '#e3f2fd', color: '#1565c0'}}>{name}</span> : null; })}</div></div>}
+                            {techStack.length > 0 && <div style={{marginTop: 10}}><strong>💻 Tech Stack:</strong><div style={{display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5}}>{techStack.map((tech, i) => <span key={i} style={{...styles.featureTag, background: '#e8f5e9', color: '#2e7d32'}}>{tech}</span>)}</div></div>}
+                            {clientNames.length > 0 && <div style={{marginTop: 10}}><strong>👥 Clients:</strong>{clients.count && <span style={{color: '#666', marginLeft: 5}}>({clients.count} total)</span>}<div style={{display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5}}>{clientNames.map((client, i) => <span key={i} style={{...styles.featureTag, background: '#fff3e0', color: '#e65100'}}>{client}</span>)}</div></div>}
+                            {projects.length > 0 && <div style={{marginTop: 10}}><strong>📋 Projects ({projects.length}):</strong><div style={{marginTop: 5}}>{projects.map((project, i) => <div key={i} style={styles.projectCard}><div style={{fontWeight: 'bold', color: '#333'}}>{typeof project === 'string' ? project : project.name || 'Unnamed Project'}</div>{typeof project !== 'string' && project.description && project.description !== "No description available" && <div style={{fontSize: 13, color: '#555', marginTop: 3}}>{project.description}</div>}{typeof project !== 'string' && project.client && <div style={{fontSize: 12, color: '#667eea', marginTop: 3}}>Client: {project.client}</div>}</div>)}</div></div>}
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'dashboard' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+          {analysis ? (
+            <>
+              <Grid container spacing={3} style={{ marginBottom: 24 }}>
+                {statsCards.map((stat, index) => (
+                  <Grid item xs={12} sm={4} key={index}>
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.1 }}>
+                      <Card style={{ padding: 20, borderRadius: 16, background: `linear-gradient(135deg, ${stat.color}15, white)` }}>
+                        <CardContent>
+                          <Box display="flex" alignItems="center" gap={2}>
+                            <Avatar style={{ background: stat.color }}>{stat.icon}</Avatar>
+                            <Box>
+                              <Typography variant="body2" color="textSecondary">{stat.title}</Typography>
+                              <Typography variant="h4" style={{ fontWeight: 'bold', color: stat.color }}>{stat.value}</Typography>
+                            </Box>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  </Grid>
+                ))}
+              </Grid>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={8}>
+                  <Paper style={styles.chartCard}>
+                    <Typography variant="h6" gutterBottom style={{ fontWeight: 'bold' }}><CodeIcon style={{ marginRight: 8, color: '#667eea' }} /> Technology Stack Distribution</Typography>
+                    <ResponsiveContainer width="100%" height={350}>
+                      <BarChart data={techData} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="value" name="Companies Using">
+                          {techData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill || COLORS[index % COLORS.length]} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Paper style={styles.chartCard}>
+                    <Typography variant="h6" gutterBottom style={{ fontWeight: 'bold' }}><WhatshotIcon style={{ marginRight: 8, color: '#ff6b6b' }} /> 🔥 Trending Technologies</Typography>
+                    {trendingTech.map((tech, index) => (
+                      <Box key={tech.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                        <Box display="flex" alignItems="center" gap={2}>
+                          <Box style={{ width: 8, height: 8, borderRadius: '50%', background: tech.fill || COLORS[index % COLORS.length] }} />
+                          <Typography variant="body2" style={{ fontWeight: 500 }}>{tech.name}</Typography>
+                        </Box>
+                        <Chip label={tech.value} size="small" style={{ background: '#667eea', color: 'white', fontWeight: 'bold', fontSize: 12 }} />
+                      </Box>
+                    ))}
+                    {trendingTech.length === 0 && <Typography variant="body2" color="textSecondary" style={{ padding: 20, textAlign: 'center' }}>No tech data available. Run an analysis!</Typography>}
+                  </Paper>
+                </Grid>
+              </Grid>
+              {analysis.insights && analysis.insights.length > 0 && (
+                <Box style={{ marginTop: 24 }}>
+                  <Typography variant="h6" style={{ fontWeight: 'bold', marginBottom: 16 }}>💡 Key Insights</Typography>
+                  <Grid container spacing={2}>
+                    {analysis.insights.slice(0, 3).map((insight, idx) => (
+                      <Grid item xs={12} md={4} key={idx}>
+                        <Paper style={{ padding: 20, borderRadius: 12, borderLeft: `4px solid ${['#667eea', '#43e97b', '#fa709a'][idx]}` }}>
+                          <Typography variant="subtitle1" style={{ fontWeight: 'bold' }}>{insight.type}</Typography>
+                          <Typography variant="body2" color="textSecondary">{insight.description}</Typography>
+                          {insight.details && <Box style={{ marginTop: 8 }}>{insight.details.slice(0, 3).map((d, i) => <Chip key={i} label={d} size="small" style={{ margin: '2px', background: '#f0f2f5' }} />)}</Box>}
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+              )}
+            </>
+          ) : (
+            <Paper style={{ padding: 40, textAlign: 'center', borderRadius: 16 }}>
+              <Typography variant="h6" color="textSecondary">📊 No data available. Go to "New Analysis" and run a scan!</Typography>
+            </Paper>
+          )}
+        </motion.div>
+      )}
+
+      {activeTab === 'reports' && (
+        <Paper style={styles.card}>
+          <Typography variant="h6" style={{ fontWeight: 'bold', marginBottom: 16 }}>📄 Reports</Typography>
+          <Typography variant="body2" color="textSecondary">
+            Here you can view and download your analysis reports.
+          </Typography>
+        </Paper>
+      )}
+    </div>
+  );
+}
+
+export default App;
