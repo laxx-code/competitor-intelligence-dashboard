@@ -421,3 +421,62 @@ You've built a **complete, production-ready Competitor Intelligence System** tha
 - ✅ **Costs $0** to run (all FREE tools)
 
 **This is a portfolio-worthy project! 🎉🚀**
+
+
+Here are the commands to run both frontend and backend:
+
+## Terminal 1 - Backend
+```bash
+cd ~/competitor-intelligence-dashboard/backend && source venv/bin/activate && python3 -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+## Terminal 2 - Frontend
+```bash
+cd ~/competitor-intelligence-dashboard/frontend && PORT=3001 npm start
+```
+
+## One Script to Run Both (in separate terminals)
+
+```bash
+# Terminal 1 - Backend
+cd ~/competitor-intelligence-dashboard/backend
+source venv/bin/activate
+python3 -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+```bash
+# Terminal 2 - Frontend
+cd ~/competitor-intelligence-dashboard/frontend
+PORT=3001 npm start
+```
+
+## Complete Start Script (Runs both in background)
+
+```bash
+cd ~/competitor-intelligence-dashboard
+
+# Kill existing processes
+sudo lsof -ti:8000 | xargs kill -9 2>/dev/null
+sudo lsof -ti:3001 | xargs kill -9 2>/dev/null
+pkill -f uvicorn 2>/dev/null
+pkill -f react-scripts 2>/dev/null
+
+# Start backend
+cd backend
+source venv/bin/activate
+python3 -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload &
+cd ..
+
+# Wait for backend
+sleep 5
+
+# Start frontend
+cd frontend
+PORT=3001 npm start &
+cd ..
+
+echo ""
+echo "✅ System Ready!"
+echo "📊 Frontend: http://localhost:3001"
+echo "🔗 Backend: http://localhost:8000"
+```
